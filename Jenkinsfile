@@ -4,7 +4,7 @@ pipeline {
     environment {
         DOCKER_HUB_REPO = 'obedineflore536/petclinic'
         DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
-        GIT_REPO = 'https://github.com/obedineflore/spring-petclinic-cicd.git'
+        GIT_REPO = 'https://github.com/Obedine-Flore/spring-petclinic-cicd.git'
         BUILD_TAG = "${BUILD_NUMBER}"
         KUBECTL_CMD = '/var/jenkins_home/kubectl'
         DOCKER_HOST = 'tcp://localhost:2375'
