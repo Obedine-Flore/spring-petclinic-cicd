@@ -1,0 +1,42 @@
+# ====================================================================
+# CUSTOM CI AGENT IMAGE FOR JAVA 25, MAVEN, AND DOCKER CLI
+# This image should be used as the 'agent' in your Kubernetes pipeline.
+# ====================================================================
+
+# 1. Base on the required JDK 25 Alpine image
+FROM eclipse-temurin:25-jdk-alpine
+
+# Set environment variables for Maven
+ENV MAVEN_HOME /usr/share/maven
+ENV MAVEN_VERSION 3.9.6
+ENV PATH $MAVEN_HOME/bin:$PATH
+
+# 2. Install Maven
+# Download and extract the latest stable Maven binary
+RUN apk add --no-cache curl tar bash && \
+    mkdir -p $MAVEN_HOME && \
+    curl -fsSL https://archive.apache.org/dist/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz | \
+    tar -xzC $MAVEN_HOME --strip-components=1 && \
+    # Clean up unnecessary files
+    rm -rf $MAVEN_HOME/lib/maven-compat && \
+    rm -rf $MAVEN_HOME/lib/ext && \
+    # Verify Maven is working
+    /usr/share/maven/bin/mvn --version
+
+# 3. Install Docker CLI (client)
+# We need the Docker client to execute 'docker build' and 'docker push'
+# The daemon will be provided by your Kubernetes setup (Docker-in-Docker or host socket mount)
+RUN apk add --no-cache docker
+
+# Set work directory
+WORKDIR /app
+
+# Final image contains:
+# - JDK 25 (from base image)
+# - Maven 3.9.6
+# - Docker CLI
+# This ensures a consistent and complete environment for your build.
+
+# The entrypoint can remain empty or be set to 'bash' for debugging, 
+# but the pipeline will override it.
+CMD ["/bin/bash"]
