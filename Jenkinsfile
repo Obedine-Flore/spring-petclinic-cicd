@@ -1,7 +1,5 @@
 pipeline {
-    // Define agent for the entire pipeline to enforce where the root workspace is located.
-    // 'agent none' means stages must define their own agents. We keep this for fine-grained control.
-    agent none
+    agent any
 
     environment {
         // Build & Docker Variables
