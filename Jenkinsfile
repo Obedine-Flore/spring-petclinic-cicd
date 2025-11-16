@@ -38,19 +38,19 @@ pipeline {
                 echo "=== Stage 2: Compiling and packaging the Spring Boot application (Diagnostic Run) ==="
 
                 // --- DIAGNOSTIC STEP: Check workspace contents to find the POM ---
-                // *** IMPORTANT: Share the output of the 'ls -F' command below ***
+                // *** IMPORTANT: The output of this 'ls -F' command will tell us the correct folder name! ***
                 container('maven') {
                     sh 'echo "--- Workspace Root Contents (Looking for the app folder) ---"; ls -F'
                     sh 'echo "------------------------------------------------------------"'
                 }
                 
-                // *** COMMENTING OUT FAILING STEPS - WE NEED THE DIRECTORY NAME FIRST ***
-                /* dir('spring-petclinic') {
+                // *** FAILING STEPS ARE COMMENTED OUT UNTIL WE KNOW THE CORRECT DIRECTORY NAME ***
+                /* dir('application-folder-name-goes-here') {
                     container('maven') { 
                         sh 'mvn clean package -DskipTests'
                     }
                 }
-                archiveArtifacts artifacts: 'spring-petclinic/target/*.jar', fingerprint: true
+                archiveArtifacts artifacts: 'application-folder-name-goes-here/target/*.jar', fingerprint: true
                 */
             }
         }
