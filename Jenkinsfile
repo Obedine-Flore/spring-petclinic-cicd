@@ -1,7 +1,5 @@
 pipeline {
-    agent {
-        label 'jenkins-controller'
-    }
+    agent none
     
     environment {
         DOCKER_HUB_REPO = 'obedineflore536/petclinic'
