@@ -35,22 +35,23 @@ pipeline {
         stage('Build Artifact (Maven)') {
             agent { label 'build-tools' }
             steps {
-                echo "=== Stage 2: Compiling and packaging the Spring Boot application (Second Diagnostic Run) ==="
+                echo "=== Stage 2: DIAGNOSTIC: Locating the pom.xml inside 'lab6-jenkins' ==="
 
-                // --- NEW DIAGNOSTIC STEP: Recursively check workspace contents ---
-                // *** IMPORTANT: Share the output of the 'ls -RF' command below ***
-                container('maven') {
-                    sh 'echo "--- Workspace Root Contents (Recursive List) ---"; ls -RF'
-                    sh 'echo "------------------------------------------------------------"'
-                }
-                
-                // *** FAILING STEPS ARE COMMENTED OUT AGAIN TO GET DIAGNOSTIC OUTPUT ***
-                /* dir('lab6-jenkins') {
-                    container('maven') { 
-                        sh 'mvn clean package -DskipTests'
+                // --- NEW DIAGNOSTIC STEP: Recursively check contents of lab6-jenkins ---
+                // *** IMPORTANT: Share the complete output of the 'ls -RF' command below ***
+                dir('lab6-jenkins') {
+                    container('maven') {
+                        sh 'echo "--- Contents of lab6-jenkins/ (Recursive List) ---"; ls -RF'
+                        sh 'echo "------------------------------------------------------------"'
                     }
                 }
-                archiveArtifacts artifacts: 'lab6-jenkins/target/*.jar', fingerprint: true
+                
+                // *** FAILING/SUBSEQUENT STEPS ARE COMMENTED OUT AGAIN TO GET DIAGNOSTIC OUTPUT ***
+                /*
+                // Use the 'container' step to execute Maven commands inside the 'maven' container
+                // sh 'mvn clean package -DskipTests'
+                // Archive the artifact from the correct subdirectory (path relative to workspace root)
+                // archiveArtifacts artifacts: 'lab6-jenkins/target/*.jar', fingerprint: true
                 */
             }
         }
@@ -59,7 +60,7 @@ pipeline {
             // Stages skipped temporarily until build succeeds
             agent any
             steps {
-                echo "Stage 3: Running Unit and Integration Tests - SKIPPED"
+                echo "Stage 3: Running Unit and Integration Tests - SKIPPED FOR DIAGNOSTIC"
             }
         }
 
@@ -67,7 +68,7 @@ pipeline {
             // Stages skipped temporarily until build succeeds
             agent any
             steps {
-                echo "Stage 4: Building Docker image - SKIPPED"
+                echo "Stage 4: Building Docker image - SKIPPED FOR DIAGNOSTIC"
             }
         }
         
@@ -75,7 +76,7 @@ pipeline {
             // Stages skipped temporarily until build succeeds
             agent any
             steps {
-                echo "Stage 5: Pushing image to Docker Hub - SKIPPED"
+                echo "Stage 5: Pushing image to Docker Hub - SKIPPED FOR DIAGNOSTIC"
             }
         }
         
@@ -83,7 +84,7 @@ pipeline {
             // Stages skipped temporarily until build succeeds
             agent any
             steps {
-                echo "Stage 6: Deploying to Kubernetes cluster - SKIPPED"
+                echo "Stage 6: Deploying to Kubernetes cluster - SKIPPED FOR DIAGNOSTIC"
             }
         }
     }
