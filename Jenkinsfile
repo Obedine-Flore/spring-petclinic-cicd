@@ -12,7 +12,7 @@ pipeline {
         GIT_REPO = 'https://github.com/Obedine-Flore/spring-petclinic-cicd.git'
         
         // Kubernetes Variables
-        KUBECTL_CMD = '/usr/local/bin/kubectl' // Adjusted path to a more common default location
+        KUBECTL_CMD = '/usr/local/bin/kubectl'
         K8S_DEPLOYMENT_FILE = 'k8s-deployment.yaml'
         K8S_DEPLOYMENT_NAME = 'petclinic'
         K8S_NAMESPACE = 'default'
@@ -26,6 +26,7 @@ pipeline {
             agent any
             steps {
                 echo "=== Stage 1: Checking out code from GitHub ==="
+                // Clean checkout ensures no lingering files from previous builds
                 cleanWs()
                 git branch: 'main', url: "${GIT_REPO}", credentialsId: "${GIT_CREDENTIALS_ID}"
             }
@@ -35,11 +36,15 @@ pipeline {
             agent { label 'build-tools' }
             steps {
                 echo "=== Stage 2: Compiling and packaging the Spring Boot application ==="
-                // *** FIX: Use the 'container' step to execute Maven commands inside the 'maven' container ***
-                container('maven') { 
-                    sh 'mvn clean package -DskipTests'
+                // *** FIX: The project code is in the 'spring-petclinic' subdirectory. Navigate there. ***
+                dir('spring-petclinic') {
+                    // Use the 'container' step to execute Maven commands inside the 'maven' container
+                    container('maven') { 
+                        sh 'mvn clean package -DskipTests'
+                    }
                 }
-                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                // Archive the artifact from the correct subdirectory
+                archiveArtifacts artifacts: 'spring-petclinic/target/*.jar', fingerprint: true
             }
         }
         
@@ -47,10 +52,14 @@ pipeline {
             agent { label 'build-tools' }
             steps {
                 echo "=== Stage 3: Running Unit and Integration Tests ==="
-                // *** FIX: Use the 'container' step to execute Maven commands inside the 'maven' container ***
-                container('maven') { 
-                    sh 'mvn test'
-                    junit 'target/surefire-reports/**/*.xml'
+                // *** FIX: Navigate to the project directory for tests. ***
+                dir('spring-petclinic') {
+                    // Use the 'container' step to execute Maven commands inside the 'maven' container
+                    container('maven') { 
+                        sh 'mvn test'
+                        // Path is relative to the 'spring-petclinic' directory
+                        junit 'target/surefire-reports/**/*.xml' 
+                    }
                 }
                 echo "✅ All tests passed and results archived!"
             }
@@ -61,12 +70,12 @@ pipeline {
             steps {
                 echo "=== Stage 4: Building Docker image using the packaged JAR ==="
                 script {
-                    // *** FIX: Use the 'container' step for shell commands that rely on the environment ***
                     container('maven') { 
-                        // Check if the jar file is present before attempting to build the image
-                        sh "test -f target/*.jar || { echo 'ERROR: JAR artifact not found! Ensure Build stage ran successfully.'; exit 1; }"
+                        // Check if the jar file is present in the subdirectory before attempting to build
+                        sh "test -f spring-petclinic/target/*.jar || { echo 'ERROR: JAR artifact not found! Ensure Build stage ran successfully.'; exit 1; }"
                         
-                        // Build the image using the BUILD_TAG and also tag it as 'latest'
+                        // Assumes the Dockerfile is in the repository root and uses the path 
+                        // `spring-petclinic/target/*.jar` in its COPY command.
                         sh """
                             docker build -t ${DOCKER_HUB_REPO}:${BUILD_TAG} .
                             docker tag ${DOCKER_HUB_REPO}:${BUILD_TAG} ${DOCKER_HUB_REPO}:latest
@@ -82,7 +91,6 @@ pipeline {
             steps {
                 echo "=== Stage 5: Pushing image to Docker Hub securely ==="
                 script {
-                    // Docker steps often require the 'maven' container if the DOCKER_HOST is set up there
                     container('maven') {
                         // Use the declarative withRegistry wrapper for secure login/logout
                         docker.withRegistry('https://registry.hub.docker.com', DOCKER_CREDENTIALS_ID) {
@@ -96,15 +104,11 @@ pipeline {
         }
         
         stage('Deploy to Kubernetes') {
-            // NOTE: This stage assumes 'kubectl' is available on the agent running the step. 
-            // If kubectl is only available inside the 'maven' container, you might need 
-            // container('maven') here too, but generally, 'agent any' or a specific 
-            // deployment tool container is used. We'll leave it as 'any' for now.
             agent any
             steps {
                 echo "=== Stage 6: Deploying to Kubernetes cluster ==="
                 script {
-                    // 1. Temporarily replace the image tag in the deployment file 
+                    // 1. Temporarily replace the image tag in the deployment file
                     sh "sed -i 's|${DOCKER_HUB_REPO}:.*|${DOCKER_HUB_REPO}:${BUILD_TAG}|g' ${K8S_DEPLOYMENT_FILE}"
                     sh "echo 'Updated deployment file with image tag: ${DOCKER_HUB_REPO}:${BUILD_TAG}'"
                     
