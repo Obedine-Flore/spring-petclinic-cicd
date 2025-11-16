@@ -1,5 +1,7 @@
 pipeline {
-    agent any
+    agent {
+        label 'jenkins-controller'
+    }
     
     environment {
         DOCKER_HUB_REPO = 'obedineflore536/petclinic'
@@ -13,6 +15,7 @@ pipeline {
     
     stages {
         stage('Checkout') {
+            agent any
             steps {
                 echo "=== Stage 1: Checking out code from GitHub ==="
                 git branch: 'main', url: "${GIT_REPO}", credentialsId: "${GIT_CREDENTIALS_ID}"
@@ -21,6 +24,12 @@ pipeline {
         }
         
         stage('Build Docker Image') {
+            agent {
+                docker {
+                    image 'maven:3.9-jdk-17' 
+                    args '-v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
             steps {
                 echo "=== Stage 2: Building Docker image ==="
                 script {
