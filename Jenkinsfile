@@ -24,12 +24,7 @@ pipeline {
         }
         
         stage('Build Docker Image') {
-            agent {
-                docker {
-                    image 'maven:3.9-jdk-17' 
-                    args '-v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
+            agent { label 'build-tools' }
             steps {
                 echo "=== Stage 2: Building Docker image ==="
                 script {
