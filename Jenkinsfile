@@ -36,6 +36,13 @@ pipeline {
             agent { label 'build-tools' }
             steps {
                 echo "=== Stage 2: Compiling and packaging the Spring Boot application ==="
+
+                // --- DIAGNOSTIC STEP: Check workspace contents to find the POM ---
+                container('maven') {
+                    sh 'echo "--- Workspace Root Contents (Looking for the app folder) ---"; ls -F'
+                    sh 'echo "------------------------------------------------------------"'
+                }
+                
                 // *** FIX: The project code is in the 'spring-petclinic' subdirectory. Navigate there. ***
                 dir('spring-petclinic') {
                     // Use the 'container' step to execute Maven commands inside the 'maven' container
