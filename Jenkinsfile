@@ -1,7 +1,7 @@
 pipeline {
     agent any
 
-    environment {
+     environment {
         // Build & Docker Variables
         DOCKER_HUB_REPO = 'obedineflore536/petclinic'
         DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
@@ -22,12 +22,12 @@ pipeline {
         // The previous 'Checkout Source Code' stage has been removed for simplicity.
 
         stage('Build Artifact (Maven)') {
-            agent { label 'build-tools' }
+            agent { label 'build-agent' } // <-- Corrected label
             steps {
                 echo "=== Stage 1: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
                 
                 // 1. Explicitly checkout the repository here to ensure submodules are cloned
-                // onto the build-tools agent's workspace before Maven runs.
+                // onto the build-agent's workspace before Maven runs.
                 checkout([
                     $class: 'GitSCM', 
                     branches: [[name: 'main']], 
@@ -63,7 +63,7 @@ pipeline {
         }
         
         stage('Test') {
-            agent { label 'build-tools' }
+            agent { label 'build-agent' } // <-- Corrected label
             steps {
                 echo "=== Stage 2: Running Unit and Integration Tests ==="
                 // Navigate to the correct project directory: 'lab6-jenkins'
@@ -79,7 +79,7 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            agent { label 'build-tools' } 
+            agent { label 'build-agent' } // <-- Corrected label
             steps {
                 echo "=== Stage 3: Building Docker image using the packaged JAR ==="
                 script {
@@ -100,7 +100,7 @@ pipeline {
         }
         
         stage('Push to Docker Hub') {
-            agent { label 'build-tools' }
+            agent { label 'build-agent' } // <-- Corrected label
             steps {
                 echo "=== Stage 4: Pushing image to Docker Hub securely ==="
                 script {
