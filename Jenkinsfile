@@ -22,11 +22,12 @@ pipeline {
         stage('Checkout Source Code') {
             agent any
             steps {
-                echo "=== Stage 1: Checking out code from GitHub ==="
+                echo "=== Stage 1: Checking out code from GitHub (Including Submodules) ==="
                 // Clean checkout ensures no lingering files from previous builds
                 cleanWs()
-                // NOTE: If the project requires submodules, you would add the option: submodule: true
-                git branch: 'main', url: "${GIT_REPO}", credentialsId: "${GIT_CREDENTIALS_ID}"
+                // --- CRITICAL FIX: Add 'submodule: true' to clone the contents of the 'lab6-jenkins' submodule ---
+                git branch: 'main', url: "${GIT_REPO}", credentialsId: "${GIT_CREDENTIALS_ID}", submodule: true
+                echo "✅ Submodules cloned successfully."
             }
         }
         
@@ -35,7 +36,7 @@ pipeline {
             steps {
                 echo "=== Stage 2: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
 
-                // --- NEW HYPOTHESIS: pom.xml is directly inside 'lab6-jenkins' ---
+                // This directory should now contain the pom.xml because submodules were cloned.
                 dir('lab6-jenkins') {
                     container('maven') { 
                         sh 'mvn clean package -DskipTests'
@@ -50,7 +51,7 @@ pipeline {
             agent { label 'build-tools' }
             steps {
                 echo "=== Stage 3: Running Unit and Integration Tests ==="
-                // --- FIX: Navigate to the correct project directory: 'lab6-jenkins' ---
+                // Navigate to the correct project directory: 'lab6-jenkins'
                 dir('lab6-jenkins') {
                     container('maven') { 
                         sh 'mvn test'
