@@ -1,12 +1,6 @@
 pipeline {
     agent any
 
-    // --- New Parameters Section for Conditional Skipping ---
-    parameters {
-        booleanParam(name: 'SKIP_BUILD_AND_TEST', defaultValue: false, description: 'If true, skips the Maven Build and Test stages.')
-    }
-    // ----------------------------------------------------
-
     environment {
         // Build & Docker Variables
         DOCKER_HUB_REPO = 'obedineflore536/petclinic'
@@ -28,16 +22,12 @@ pipeline {
         // The previous 'Checkout Source Code' stage has been removed for simplicity.
 
         stage('Build Artifact (Maven)') {
-            agent { label 'build-agent' }
-            // --- Conditional 'when' directive: Run only if SKIP_BUILD_AND_TEST is FALSE ---
-            when {
-                expression { return !params.SKIP_BUILD_AND_TEST }
-            }
+            agent { label 'build-tools' }
             steps {
-                echo "Diagnostic: SKIP_BUILD_AND_TEST is set to: ${params.SKIP_BUILD_AND_TEST}. Stage is running."
                 echo "=== Stage 1: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
                 
-                // 1. Checkout the full repository, including submodules
+                // --- CRITICAL FIX: Explicitly checkout the repository here to ensure submodules are cloned
+                // onto the build-tools agent's workspace before Maven runs. ---
                 checkout([
                     $class: 'GitSCM', 
                     branches: [[name: 'main']], 
@@ -47,37 +37,28 @@ pipeline {
                                   recursiveSubmodules: true, 
                                   parentCredentials: true]]
                 ])
-                echo "✅ Main repository cloned successfully onto the build agent."
+                echo "✅ Source code and submodules cloned successfully onto the build agent."
 
-                // 2. CRITICAL MANUAL STEP: Explicitly initialize and update submodules.
-                sh 'git submodule update --init --recursive'
-                echo "✅ Git submodules initialized and updated."
-                
-                // 3. Run Maven build
+                // This directory should now contain the pom.xml because submodules were cloned.
                 dir('lab6-jenkins') {
                     container('maven') { 
-                        sh 'java -version'
                         sh 'mvn clean package -DskipTests'
                     }
                 }
-                // Archive the artifact for use in later stages
+                // Archive the artifact from the corrected subdirectory (path relative to workspace root)
                 archiveArtifacts artifacts: 'lab6-jenkins/target/*.jar', fingerprint: true
             }
         }
         
         stage('Test') {
-            agent { label 'build-agent' }
-            // --- Conditional 'when' directive: Run only if SKIP_BUILD_AND_TEST is FALSE ---
-            when {
-                expression { return !params.SKIP_BUILD_AND_TEST }
-            }
+            agent { label 'build-tools' }
             steps {
-                echo "Diagnostic: SKIP_BUILD_AND_TEST is set to: ${params.SKIP_BUILD_AND_TEST}. Stage is running."
                 echo "=== Stage 2: Running Unit and Integration Tests ==="
                 // Navigate to the correct project directory: 'lab6-jenkins'
                 dir('lab6-jenkins') {
                     container('maven') { 
                         sh 'mvn test'
+                        // Path is relative to the current directory ('lab6-jenkins')
                         junit 'target/surefire-reports/**/*.xml' 
                     }
                 }
@@ -121,7 +102,7 @@ pipeline {
         }
         
         stage('Push to Docker Hub') {
-            agent { label 'build-agent' }
+            agent { label 'build-tools' }
             steps {
                 echo "=== Stage 4: Pushing image to Docker Hub securely ==="
                 script {
@@ -141,14 +122,6 @@ pipeline {
             agent any
             steps {
                 echo "=== Stage 5: Deploying to Kubernetes cluster ==="
-                
-                // Checkout main repository files (k8s-deployment.yaml)
-                checkout([
-                    $class: 'GitSCM', 
-                    branches: [[name: 'main']], 
-                    userRemoteConfigs: [[url: GIT_REPO, credentialsId: GIT_CREDENTIALS_ID]]
-                ])
-
                 script {
                     // 1. Temporarily replace the image tag in the deployment file
                     sh "sed -i 's|${DOCKER_HUB_REPO}:.*|${DOCKER_HUB_REPO}:${BUILD_TAG}|g' ${K8S_DEPLOYMENT_FILE}"
