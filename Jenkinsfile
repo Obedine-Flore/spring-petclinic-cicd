@@ -26,8 +26,8 @@ pipeline {
             steps {
                 echo "=== Stage 1: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
                 
-                // --- CRITICAL FIX: Explicitly checkout the repository here to ensure submodules are cloned
-                // onto the build-tools agent's workspace before Maven runs. ---
+                // 1. Explicitly checkout the repository here to ensure submodules are cloned
+                // onto the build-tools agent's workspace before Maven runs.
                 checkout([
                     $class: 'GitSCM', 
                     branches: [[name: 'main']], 
@@ -37,11 +37,23 @@ pipeline {
                                   recursiveSubmodules: true, 
                                   parentCredentials: true]]
                 ])
-                echo "✅ Source code and submodules cloned successfully onto the build agent."
+                echo "✅ Main repository cloned successfully onto the build agent."
 
-                // This directory should now contain the pom.xml because submodules were cloned.
+                // 2. CRITICAL MANUAL STEP: Explicitly initialize and update submodules.
+                // This command ensures the actual content of the 'lab6-jenkins' submodule is pulled.
+                sh 'git submodule update --init --recursive'
+                echo "✅ Git submodules initialized and updated."
+                
+                // 3. Diagnostic check: List contents of 'lab6-jenkins' to verify submodule content.
+                echo "Diagnostic: Listing contents of 'lab6-jenkins' to verify submodule content..."
+                sh 'ls -R lab6-jenkins' 
+
+                // 4. Run Maven build
                 dir('lab6-jenkins') {
                     container('maven') { 
+                        // DIAGNOSTIC STEP: Check the Java version used by the container environment.
+                        sh 'java -version'
+                        // Original build command
                         sh 'mvn clean package -DskipTests'
                     }
                 }
