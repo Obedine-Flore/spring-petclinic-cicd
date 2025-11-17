@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    // --- New Parameters Section for Conditional Skipping ---
+    parameters {
+        booleanParam(name: 'SKIP_BUILD_AND_TEST', defaultValue: false, description: 'If true, skips the Maven Build and Test stages.')
+    }
+    // ----------------------------------------------------
+
     environment {
         // Build & Docker Variables
         DOCKER_HUB_REPO = 'obedineflore536/petclinic'
@@ -17,6 +23,67 @@ pipeline {
         K8S_DEPLOYMENT_NAME = 'petclinic'
         K8S_NAMESPACE = 'default'
     }
+
+    stages {
+        // The previous 'Checkout Source Code' stage has been removed for simplicity.
+
+        stage('Build Artifact (Maven)') {
+            agent { label 'build-agent' }
+            // --- Conditional 'when' directive: Run only if SKIP_BUILD_AND_TEST is FALSE ---
+            when {
+                expression { return !params.SKIP_BUILD_AND_TEST }
+            }
+            steps {
+                echo "Diagnostic: SKIP_BUILD_AND_TEST is set to: ${params.SKIP_BUILD_AND_TEST}. Stage is running."
+                echo "=== Stage 1: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
+                
+                // 1. Checkout the full repository, including submodules
+                checkout([
+                    $class: 'GitSCM', 
+                    branches: [[name: 'main']], 
+                    userRemoteConfigs: [[url: GIT_REPO, credentialsId: GIT_CREDENTIALS_ID]], 
+                    extensions: [[$class: 'SubmoduleOption', 
+                                  disableSubmodules: false, 
+                                  recursiveSubmodules: true, 
+                                  parentCredentials: true]]
+                ])
+                echo "✅ Main repository cloned successfully onto the build agent."
+
+                // 2. CRITICAL MANUAL STEP: Explicitly initialize and update submodules.
+                sh 'git submodule update --init --recursive'
+                echo "✅ Git submodules initialized and updated."
+                
+                // 3. Run Maven build
+                dir('lab6-jenkins') {
+                    container('maven') { 
+                        sh 'java -version'
+                        sh 'mvn clean package -DskipTests'
+                    }
+                }
+                // Archive the artifact for use in later stages
+                archiveArtifacts artifacts: 'lab6-jenkins/target/*.jar', fingerprint: true
+            }
+        }
+        
+        stage('Test') {
+            agent { label 'build-agent' }
+            // --- Conditional 'when' directive: Run only if SKIP_BUILD_AND_TEST is FALSE ---
+            when {
+                expression { return !params.SKIP_BUILD_AND_TEST }
+            }
+            steps {
+                echo "Diagnostic: SKIP_BUILD_AND_TEST is set to: ${params.SKIP_BUILD_AND_TEST}. Stage is running."
+                echo "=== Stage 2: Running Unit and Integration Tests ==="
+                // Navigate to the correct project directory: 'lab6-jenkins'
+                dir('lab6-jenkins') {
+                    container('maven') { 
+                        sh 'mvn test'
+                        junit 'target/surefire-reports/**/*.xml' 
+                    }
+                }
+                echo "✅ All tests passed and results archived!"
+            }
+        }
 
         stage('Build Docker Image') {
             agent { label 'build-agent' }
@@ -122,3 +189,4 @@ pipeline {
             cleanWs()
         }
     }
+}
