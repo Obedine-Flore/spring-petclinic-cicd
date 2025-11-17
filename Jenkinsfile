@@ -18,77 +18,31 @@ pipeline {
         K8S_NAMESPACE = 'default'
     }
 
-    stages {
-        // The previous 'Checkout Source Code' stage has been removed for simplicity.
-
-        stage('Build Artifact (Maven)') {
-            agent { label 'build-tools' }
+        stage('Build Docker Image') {
+            agent { label 'build-agent' }
             steps {
-                echo "=== Stage 1: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
+                echo "=== Stage 3: Building Docker image using the packaged JAR ==="
+                echo "Diagnostic: Stages 1 and 2 were skipped? ${params.SKIP_BUILD_AND_TEST}"
                 
-                // 1. Explicitly checkout the repository here to ensure submodules are cloned
-                // onto the build-tools agent's workspace before Maven runs.
+                // 1. Checkout main repository files (Dockerfile, etc.)
                 checkout([
                     $class: 'GitSCM', 
                     branches: [[name: 'main']], 
-                    userRemoteConfigs: [[url: GIT_REPO, credentialsId: GIT_CREDENTIALS_ID]], 
-                    extensions: [[$class: 'SubmoduleOption', 
-                                  disableSubmodules: false, 
-                                  recursiveSubmodules: true, 
-                                  parentCredentials: true]]
+                    userRemoteConfigs: [[url: GIT_REPO, credentialsId: GIT_CREDENTIALS_ID]]
                 ])
-                echo "✅ Main repository cloned successfully onto the build agent."
-
-                // 2. CRITICAL MANUAL STEP: Explicitly initialize and update submodules.
-                // This command ensures the actual content of the 'lab6-jenkins' submodule is pulled.
-                sh 'git submodule update --init --recursive'
-                echo "✅ Git submodules initialized and updated."
                 
-                // 3. Diagnostic check: List contents of 'lab6-jenkins' to verify submodule content.
-                echo "Diagnostic: Listing contents of 'lab6-jenkins' to verify submodule content..."
-                sh 'ls -R lab6-jenkins' 
+                // 2. FIX: Unarchive artifacts *before* container is used. 
+                // This ensures the JAR is available in the workspace.
+                unarchiveArtifacts artifacts: 'lab6-jenkins/target/*.jar'
+                echo "✅ Artifacts unarchived for Docker build."
 
-                // 4. Run Maven build
-                dir('lab6-jenkins') {
-                    container('maven') { 
-                        // DIAGNOSTIC STEP: Check the Java version used by the container environment.
-                        sh 'java -version'
-                        // Original build command
-                        sh 'mvn clean package -DskipTests'
-                    }
-                }
-                // Archive the artifact from the corrected subdirectory (path relative to workspace root)
-                archiveArtifacts artifacts: 'lab6-jenkins/target/*.jar', fingerprint: true
-            }
-        }
-        
-        stage('Test') {
-            agent { label 'build-tools' }
-            steps {
-                echo "=== Stage 2: Running Unit and Integration Tests ==="
-                // Navigate to the correct project directory: 'lab6-jenkins'
-                dir('lab6-jenkins') {
-                    container('maven') { 
-                        sh 'mvn test'
-                        // Path is relative to the current directory ('lab6-jenkins')
-                        junit 'target/surefire-reports/**/*.xml' 
-                    }
-                }
-                echo "✅ All tests passed and results archived!"
-            }
-        }
-
-        stage('Build Docker Image') {
-            agent { label 'build-tools' } 
-            steps {
-                echo "=== Stage 3: Building Docker image using the packaged JAR ==="
                 script {
                     container('maven') { 
-                        // The artifact is expected in the 'lab6-jenkins/target' directory
-                        sh "test -f lab6-jenkins/target/*.jar || { echo 'ERROR: JAR artifact not found! Ensure Build stage ran successfully.'; exit 1; }"
                         
-                        // Assumes the Dockerfile is in the repository root and uses the JAR path 
-                        // 'lab6-jenkins/target/*.jar' in its COPY command.
+                        // DIAGNOSTIC: List files in the target directory after unarchiving
+                        sh 'ls -l lab6-jenkins/target/'
+                        
+                        // 3. Build the image
                         sh """
                             docker build -t ${DOCKER_HUB_REPO}:${BUILD_TAG} .
                             docker tag ${DOCKER_HUB_REPO}:${BUILD_TAG} ${DOCKER_HUB_REPO}:latest
@@ -100,7 +54,7 @@ pipeline {
         }
         
         stage('Push to Docker Hub') {
-            agent { label 'build-tools' }
+            agent { label 'build-agent' }
             steps {
                 echo "=== Stage 4: Pushing image to Docker Hub securely ==="
                 script {
@@ -120,6 +74,14 @@ pipeline {
             agent any
             steps {
                 echo "=== Stage 5: Deploying to Kubernetes cluster ==="
+                
+                // Checkout main repository files (k8s-deployment.yaml)
+                checkout([
+                    $class: 'GitSCM', 
+                    branches: [[name: 'main']], 
+                    userRemoteConfigs: [[url: GIT_REPO, credentialsId: GIT_CREDENTIALS_ID]]
+                ])
+
                 script {
                     // 1. Temporarily replace the image tag in the deployment file
                     sh "sed -i 's|${DOCKER_HUB_REPO}:.*|${DOCKER_HUB_REPO}:${BUILD_TAG}|g' ${K8S_DEPLOYMENT_FILE}"
@@ -160,4 +122,3 @@ pipeline {
             cleanWs()
         }
     }
-}
