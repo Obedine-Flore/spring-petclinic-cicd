@@ -25,9 +25,22 @@ pipeline {
                 echo "=== Stage 1: Checking out code from GitHub (Including Submodules) ==="
                 // Clean checkout ensures no lingering files from previous builds
                 cleanWs()
-                // --- CRITICAL FIX: Add 'submodule: true' to clone the contents of the 'lab6-jenkins' submodule ---
-                git branch: 'main', url: "${GIT_REPO}", credentialsId: "${GIT_CREDENTIALS_ID}", submodule: true
+                // --- CRITICAL FIX: Replace simple 'git' step with full 'checkout' for robust submodule support. ---
+                // The 'submodule: true' parameter is invalid for the simple 'git' step in declarative pipelines.
+                checkout([
+                    $class: 'GitSCM', 
+                    branches: [[name: 'main']], 
+                    userRemoteConfigs: [[url: GIT_REPO, credentialsId: GIT_CREDENTIALS_ID]], 
+                    extensions: [[$class: 'SubmoduleOption', 
+                                  disableSubmodules: false, 
+                                  recursiveSubmodules: true, 
+                                  parentCredentials: true]]
+                ])
                 echo "✅ Submodules cloned successfully."
+                
+                // --- DIAGNOSTIC STEP: List contents of 'lab6-jenkins' to determine correct path ---
+                echo "Listing contents of 'lab6-jenkins' to determine correct path..."
+                sh 'ls -R lab6-jenkins' 
             }
         }
         
