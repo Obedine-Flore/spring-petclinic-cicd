@@ -19,14 +19,15 @@ pipeline {
     }
 
     stages {
-        stage('Checkout Source Code') {
-            agent any
+        // The previous 'Checkout Source Code' stage has been removed for simplicity.
+
+        stage('Build Artifact (Maven)') {
+            agent { label 'build-tools' }
             steps {
-                echo "=== Stage 1: Checking out code from GitHub (Including Submodules) ==="
-                // Clean checkout ensures no lingering files from previous builds
-                cleanWs()
-                // --- CRITICAL FIX: Replace simple 'git' step with full 'checkout' for robust submodule support. ---
-                // The 'submodule: true' parameter is invalid for the simple 'git' step in declarative pipelines.
+                echo "=== Stage 1: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
+                
+                // --- CRITICAL FIX: Explicitly checkout the repository here to ensure submodules are cloned
+                // onto the build-tools agent's workspace before Maven runs. ---
                 checkout([
                     $class: 'GitSCM', 
                     branches: [[name: 'main']], 
@@ -36,18 +37,7 @@ pipeline {
                                   recursiveSubmodules: true, 
                                   parentCredentials: true]]
                 ])
-                echo "✅ Submodules cloned successfully."
-                
-                // --- DIAGNOSTIC STEP: List contents of 'lab6-jenkins' to determine correct path ---
-                echo "Listing contents of 'lab6-jenkins' to determine correct path..."
-                sh 'ls -R lab6-jenkins' 
-            }
-        }
-        
-        stage('Build Artifact (Maven)') {
-            agent { label 'build-tools' }
-            steps {
-                echo "=== Stage 2: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
+                echo "✅ Source code and submodules cloned successfully onto the build agent."
 
                 // This directory should now contain the pom.xml because submodules were cloned.
                 dir('lab6-jenkins') {
@@ -63,7 +53,7 @@ pipeline {
         stage('Test') {
             agent { label 'build-tools' }
             steps {
-                echo "=== Stage 3: Running Unit and Integration Tests ==="
+                echo "=== Stage 2: Running Unit and Integration Tests ==="
                 // Navigate to the correct project directory: 'lab6-jenkins'
                 dir('lab6-jenkins') {
                     container('maven') { 
@@ -79,7 +69,7 @@ pipeline {
         stage('Build Docker Image') {
             agent { label 'build-tools' } 
             steps {
-                echo "=== Stage 4: Building Docker image using the packaged JAR ==="
+                echo "=== Stage 3: Building Docker image using the packaged JAR ==="
                 script {
                     container('maven') { 
                         // The artifact is expected in the 'lab6-jenkins/target' directory
@@ -100,7 +90,7 @@ pipeline {
         stage('Push to Docker Hub') {
             agent { label 'build-tools' }
             steps {
-                echo "=== Stage 5: Pushing image to Docker Hub securely ==="
+                echo "=== Stage 4: Pushing image to Docker Hub securely ==="
                 script {
                     container('maven') {
                         // Use the declarative withRegistry wrapper for secure login/logout
@@ -117,7 +107,7 @@ pipeline {
         stage('Deploy to Kubernetes') {
             agent any
             steps {
-                echo "=== Stage 6: Deploying to Kubernetes cluster ==="
+                echo "=== Stage 5: Deploying to Kubernetes cluster ==="
                 script {
                     // 1. Temporarily replace the image tag in the deployment file
                     sh "sed -i 's|${DOCKER_HUB_REPO}:.*|${DOCKER_HUB_REPO}:${BUILD_TAG}|g' ${K8S_DEPLOYMENT_FILE}"
