@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    // --- New Parameters Section for Conditional Skipping ---
+    parameters {
+        booleanParam(name: 'SKIP_BUILD_AND_TEST', defaultValue: false, description: 'If true, skips the Maven Build and Test stages.')
+    }
+    // ----------------------------------------------------
+
     environment {
         // Build & Docker Variables
         DOCKER_HUB_REPO = 'obedineflore536/petclinic'
@@ -23,6 +29,10 @@ pipeline {
 
         stage('Build Artifact (Maven)') {
             agent { label 'build-agent' } // <-- Corrected label
+            // --- Conditional 'when' directive ---
+            when {
+                expression { params.SKIP_BUILD_AND_TEST == false }
+            }
             steps {
                 echo "=== Stage 1: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
                 
@@ -64,6 +74,10 @@ pipeline {
         
         stage('Test') {
             agent { label 'build-agent' } // <-- Corrected label
+            // --- Conditional 'when' directive ---
+            when {
+                expression { params.SKIP_BUILD_AND_TEST == false }
+            }
             steps {
                 echo "=== Stage 2: Running Unit and Integration Tests ==="
                 // Navigate to the correct project directory: 'lab6-jenkins'
