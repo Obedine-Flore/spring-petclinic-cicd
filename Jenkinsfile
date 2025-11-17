@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    // --- New Parameters Section for Conditional Skipping ---
+    parameters {
+        booleanParam(name: 'SKIP_BUILD_AND_TEST', defaultValue: false, description: 'If true, skips the Maven Build and Test stages.')
+    }
+    // ----------------------------------------------------
+
     environment {
         // Build & Docker Variables
         DOCKER_HUB_REPO = 'obedineflore536/petclinic'
@@ -67,7 +73,7 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            agent { label 'build-agent' }
+            agent { label 'build-tools' }
             steps {
                 echo "=== Stage 3: Building Docker image using the packaged JAR ==="
                 echo "Diagnostic: Stages 1 and 2 were skipped? ${params.SKIP_BUILD_AND_TEST}"
