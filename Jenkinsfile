@@ -22,12 +22,12 @@ pipeline {
         // The previous 'Checkout Source Code' stage has been removed for simplicity.
 
         stage('Build Artifact (Maven)') {
-            agent { label 'build-tools' }
+            agent { label 'build-agent' } // <-- Corrected label
             steps {
                 echo "=== Stage 1: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
                 
                 // 1. Explicitly checkout the repository here to ensure submodules are cloned
-                // onto the build-tools agent's workspace before Maven runs.
+                // onto the build-agent's workspace before Maven runs.
                 checkout([
                     $class: 'GitSCM', 
                     branches: [[name: 'main']], 
@@ -63,7 +63,7 @@ pipeline {
         }
         
         stage('Test') {
-            agent { label 'build-tools' }
+            agent { label 'build-agent' } // <-- Corrected label
             steps {
                 echo "=== Stage 2: Running Unit and Integration Tests ==="
                 // Navigate to the correct project directory: 'lab6-jenkins'
@@ -79,12 +79,21 @@ pipeline {
         }
 
         stage('Build Docker Image') {
-            agent { label 'build-tools' } 
+            agent { label 'build-agent' } // <-- Corrected label
             steps {
                 echo "=== Stage 3: Building Docker image using the packaged JAR ==="
                 script {
                     container('maven') { 
-                        // The artifact is expected in the 'lab6-jenkins/target' directory
+                        
+                        // FIX: Unarchive artifacts to ensure the JAR file is present in this stage's workspace,
+                        // as a new Kubernetes Pod/Agent may have been provisioned.
+                        unarchiveArtifacts artifacts: 'lab6-jenkins/target/*.jar'
+                        echo "✅ Artifacts unarchived for Docker build."
+
+                        // DIAGNOSTIC: List files in the target directory after unarchiving
+                        sh 'ls -l lab6-jenkins/target/'
+                        
+                        // Check if the JAR exists (now safer after unarchive)
                         sh "test -f lab6-jenkins/target/*.jar || { echo 'ERROR: JAR artifact not found! Ensure Build stage ran successfully.'; exit 1; }"
                         
                         // Assumes the Dockerfile is in the repository root and uses the JAR path 
@@ -100,7 +109,7 @@ pipeline {
         }
         
         stage('Push to Docker Hub') {
-            agent { label 'build-tools' }
+            agent { label 'build-agent' } // <-- Corrected label
             steps {
                 echo "=== Stage 4: Pushing image to Docker Hub securely ==="
                 script {
