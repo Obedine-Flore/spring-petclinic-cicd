@@ -29,11 +29,12 @@ pipeline {
 
         stage('Build Artifact (Maven)') {
             agent { label 'build-agent' } // <-- Corrected label
-            // --- Conditional 'when' directive ---
+            // --- Conditional 'when' directive: Run only if SKIP_BUILD_AND_TEST is FALSE ---
             when {
-                expression { params.SKIP_BUILD_AND_TEST == false }
+                expression { return !params.SKIP_BUILD_AND_TEST }
             }
             steps {
+                echo "Diagnostic: SKIP_BUILD_AND_TEST is set to: ${params.SKIP_BUILD_AND_TEST}. Stage is running."
                 echo "=== Stage 1: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins') ==="
                 
                 // 1. Explicitly checkout the repository here to ensure submodules are cloned
@@ -74,11 +75,12 @@ pipeline {
         
         stage('Test') {
             agent { label 'build-agent' } // <-- Corrected label
-            // --- Conditional 'when' directive ---
+            // --- Conditional 'when' directive: Run only if SKIP_BUILD_AND_TEST is FALSE ---
             when {
-                expression { params.SKIP_BUILD_AND_TEST == false }
+                expression { return !params.SKIP_BUILD_AND_TEST }
             }
             steps {
+                echo "Diagnostic: SKIP_BUILD_AND_TEST is set to: ${params.SKIP_BUILD_AND_TEST}. Stage is running."
                 echo "=== Stage 2: Running Unit and Integration Tests ==="
                 // Navigate to the correct project directory: 'lab6-jenkins'
                 dir('lab6-jenkins') {
@@ -96,6 +98,7 @@ pipeline {
             agent { label 'build-agent' } // <-- Corrected label
             steps {
                 echo "=== Stage 3: Building Docker image using the packaged JAR ==="
+                echo "Diagnostic: Stages 1 and 2 were skipped? ${params.SKIP_BUILD_AND_TEST}"
                 script {
                     container('maven') { 
                         
