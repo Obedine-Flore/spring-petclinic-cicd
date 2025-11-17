@@ -12,13 +12,10 @@ pipeline {
         GIT_REPO = 'https://github.com/Obedine-Flore/spring-petclinic-cicd.git'
         
         // Kubernetes Variables
-        KUBECTL_CMD = '/usr/local/bin/kubectl'
+        KUBECTL_CMD = '/usr/local/bin/kubectl' // Adjusted path to a more common default location
         K8S_DEPLOYMENT_FILE = 'k8s-deployment.yaml'
         K8S_DEPLOYMENT_NAME = 'petclinic'
         K8S_NAMESPACE = 'default'
-        
-        // Docker Host is typically not needed for standard DIND/socket setups, removing for clarity.
-        // If your agent environment requires it, uncomment: DOCKER_HOST = 'tcp://localhost:2375'
     }
 
     stages {
@@ -35,93 +32,56 @@ pipeline {
         stage('Build Artifact (Maven)') {
             agent { label 'build-tools' }
             steps {
-                echo "=== Stage 2: Compiling and packaging the Spring Boot application (Using 'lab6-jenkins/lab6-jenkins-2' directory) ==="
+                echo "=== Stage 2: DIAGNOSTIC: FINDING THE EXACT LOCATION OF pom.xml ==="
 
-                // --- FIX: Use the corrected, deeply nested subdirectory ---
-                dir('lab6-jenkins/lab6-jenkins-2') {
-                    container('maven') { 
-                        sh 'mvn clean package -DskipTests'
-                    }
+                // --- NEW DIAGNOSTIC STEP: Recursively search for pom.xml from workspace root ---
+                // *** IMPORTANT: Share the complete output of the 'find' command below ***
+                container('maven') { 
+                    sh 'echo "--- Searching for pom.xml from Workspace Root ---"; find . -name "pom.xml"'
+                    sh 'echo "------------------------------------------------------------"'
                 }
-                // Archive the artifact from the corrected subdirectory (path relative to workspace root)
-                archiveArtifacts artifacts: 'lab6-jenkins/lab6-jenkins-2/target/*.jar', fingerprint: true
+                
+                // *** FAILING/SUBSEQUENT STEPS ARE COMMENTED OUT AGAIN TO GET DIAGNOSTIC OUTPUT ***
+                /*
+                // dir('lab6-jenkins/lab6-jenkins-2') {
+                //     container('maven') { 
+                //         sh 'mvn clean package -DskipTests'
+                //     }
+                // }
+                // archiveArtifacts artifacts: 'lab6-jenkins/lab6-jenkins-2/target/*.jar', fingerprint: true
+                */
             }
         }
         
         stage('Test') {
-            agent { label 'build-tools' }
+            // Stages skipped temporarily until build succeeds
+            agent any
             steps {
-                echo "=== Stage 3: Running Unit and Integration Tests ==="
-                // --- FIX: Navigate to the correct project directory: 'lab6-jenkins/lab6-jenkins-2' ---
-                dir('lab6-jenkins/lab6-jenkins-2') {
-                    container('maven') { 
-                        sh 'mvn test'
-                        // Path is relative to the current directory ('lab6-jenkins/lab6-jenkins-2')
-                        junit 'target/surefire-reports/**/*.xml' 
-                    }
-                }
-                echo "✅ All tests passed and results archived!"
+                echo "Stage 3: Running Unit and Integration Tests - SKIPPED FOR DIAGNOSTIC"
             }
         }
 
         stage('Build Docker Image') {
-            agent { label 'build-tools' } 
+            // Stages skipped temporarily until build succeeds
+            agent any
             steps {
-                echo "=== Stage 4: Building Docker image using the packaged JAR ==="
-                script {
-                    container('maven') { 
-                        // The artifact is expected in the 'lab6-jenkins/lab6-jenkins-2/target' directory
-                        sh "test -f lab6-jenkins/lab6-jenkins-2/target/*.jar || { echo 'ERROR: JAR artifact not found! Ensure Build stage ran successfully.'; exit 1; }"
-                        
-                        // Assumes the Dockerfile is in the repository root and uses the JAR path 
-                        // `lab6-jenkins/lab6-jenkins-2/target/*.jar` in its COPY command.
-                        sh """
-                            docker build -t ${DOCKER_HUB_REPO}:${BUILD_TAG} .
-                            docker tag ${DOCKER_HUB_REPO}:${BUILD_TAG} ${DOCKER_HUB_REPO}:latest
-                            docker images | grep petclinic
-                        """
-                    }
-                }
+                echo "Stage 4: Building Docker image - SKIPPED FOR DIAGNOSTIC"
             }
         }
         
         stage('Push to Docker Hub') {
-            agent { label 'build-tools' }
+            // Stages skipped temporarily until build succeeds
+            agent any
             steps {
-                echo "=== Stage 5: Pushing image to Docker Hub securely ==="
-                script {
-                    container('maven') {
-                        // Use the declarative withRegistry wrapper for secure login/logout
-                        docker.withRegistry('https://registry.hub.docker.com', DOCKER_CREDENTIALS_ID) {
-                            sh "docker push ${DOCKER_HUB_REPO}:${BUILD_TAG}"
-                            sh "docker push ${DOCKER_HUB_REPO}:latest"
-                            echo "✅ Images pushed successfully!"
-                        }
-                    }
-                }
+                echo "Stage 5: Pushing image to Docker Hub - SKIPPED FOR DIAGNOSTIC"
             }
         }
         
         stage('Deploy to Kubernetes') {
+            // Stages skipped temporarily until build succeeds
             agent any
             steps {
-                echo "=== Stage 6: Deploying to Kubernetes cluster ==="
-                script {
-                    // 1. Temporarily replace the image tag in the deployment file
-                    sh "sed -i 's|${DOCKER_HUB_REPO}:.*|${DOCKER_HUB_REPO}:${BUILD_TAG}|g' ${K8S_DEPLOYMENT_FILE}"
-                    sh "echo 'Updated deployment file with image tag: ${DOCKER_HUB_REPO}:${BUILD_TAG}'"
-                    
-                    // 2. Apply the deployment
-                    sh "${KUBECTL_CMD} apply -f ${K8S_DEPLOYMENT_FILE}"
-                    
-                    // 3. Wait for rollout
-                    echo "Waiting for deployment ${K8S_DEPLOYMENT_NAME} to complete in namespace ${K8S_NAMESPACE}..."
-                    sh "${KUBECTL_CMD} rollout status deployment/${K8S_DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} --timeout=5m"
-                    
-                    echo "✅ Deployment successful! Final status:"
-                    sh "${KUBECTL_CMD} get pods -n ${K8S_NAMESPACE} -l app=${K8S_DEPLOYMENT_NAME}"
-                    sh "${KUBECTL_CMD} get svc ${K8S_DEPLOYMENT_NAME}-service -n ${K8S_NAMESPACE}"
-                }
+                echo "Stage 6: Deploying to Kubernetes cluster - SKIPPED FOR DIAGNOSTIC"
             }
         }
     }
@@ -129,20 +89,15 @@ pipeline {
     post {
         success {
             echo '========================================='
-            echo '✅ Pipeline completed successfully!'
-            echo '========================================='
-            echo 'Application is accessible at:'
-            echo 'http://<NODE_IP>:30080'
+            echo '✅ Pipeline completed successfully (FOURTH DIAGNOSTIC RUN)!'
             echo '========================================='
         }
         failure {
             echo '========================================='
-            echo '❌ Pipeline failed!'
+            echo '❌ Pipeline failed! (FOURTH DIAGNOSTIC RUN)'
             echo 'Check the console output for errors.'
             echo '========================================='
         }
-        // 'always' block is no longer strictly needed for logout due to 'withRegistry' wrapper, 
-        // but can be used for general cleanup.
         always {
             echo 'Cleaning up workspace...'
             cleanWs()
