@@ -109,13 +109,12 @@ pipeline {
                 container('docker') {
                     echo "=== Stage 4: Pushing to Docker Hub ==="
                     script {
-                      // FIX: Use the 'credentialsId:' keyword
-                        docker.withRegistry('https://registry.hub.docker.com', credentialsId: 'dockerhub-credentials') {
+                        docker.withRegistry('https://registry.hub.docker.com', dockerhub-credentials) {
                             sh "docker push ${DOCKER_HUB_REPO}:${BUILD_TAG}"
                             sh "docker push ${DOCKER_HUB_REPO}:latest"
                         }
                     }
-                }   
+                }
             }
         }
         
