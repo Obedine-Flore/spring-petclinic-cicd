@@ -94,12 +94,11 @@ pipeline {
                 container('docker') {
                     echo "=== Stage 3: Building Docker image ==="
                     script {
-                        // Verify JAR exists (it is shared across containers in the workspace)
-                        sh "ls -l lab6-jenkins/target/*.jar"
-                        
-                        // Build and Tag
-                        sh "docker build -t ${DOCKER_HUB_REPO}:${BUILD_TAG} ."
-                        sh "docker tag ${DOCKER_HUB_REPO}:${BUILD_TAG} ${DOCKER_HUB_REPO}:latest"
+                        dir('lab6-jenkins') {
+                            sh "ls -l target/*.jar"
+                            sh "docker build -t ${DOCKER_HUB_REPO}:${BUILD_TAG} ."
+                            sh "docker tag ${DOCKER_HUB_REPO}:${BUILD_TAG} ${DOCKER_HUB_REPO}:latest"
+                        }
                     }
                 }
             }
@@ -147,6 +146,7 @@ pipeline {
             echo '❌ Pipeline failed!'
         }
         always {
+            sh "chmod -R a+rwx ${WORKSPACE}"
             deleteDir()
         }
     }
